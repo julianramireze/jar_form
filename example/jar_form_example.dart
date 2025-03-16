@@ -56,9 +56,7 @@ class _SignupScreenState extends State<SignupScreen> {
   void initState() {
     super.initState();
 
-    // Add custom validation for confirmPassword
     _formController.watch<String>('password', (_) {
-      // Trigger validation on confirmPassword when password changes
       _formController.trigger('confirmPassword');
     });
   }
@@ -70,7 +68,6 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _onSubmit(Map<String, dynamic> values) async {
-    // Check if password and confirmPassword match
     if (values['password'] != values['confirmPassword']) {
       _formController.setValue<String>(
         'confirmPassword',
@@ -79,12 +76,10 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
-    // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Signup successful!')),
     );
 
-    // In a real app, you would send the data to your API
     print('Form submitted with values:');
     print(values);
   }
@@ -180,23 +175,15 @@ class _SignupScreenState extends State<SignupScreen> {
     return JarFormField<String>(
       name: 'confirmPassword',
       builder: (state) {
-        // Add custom validation for password matching
         final password = _formController.getFieldValue<String>('password');
         if (state.value != null &&
             password != null &&
             state.value != password &&
             state.error == null) {
-          // Una mejor solución es crear un validador asincrónico personalizado
-          // que podemos adjuntar al campo al registrarlo
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // Simplemente actualiza el valor, lo que disparará la validación
-            // En una app real, añadiríamos validación personalizada al schema o
-            // a través de asyncValidators
             _formController.setValue('confirmPassword', state.value);
 
-            // Simulamos un pequeño retraso para permitir que la validación se complete
             Future.delayed(Duration(milliseconds: 50), () {
-              // Y luego simplemente comparamos de nuevo y mostramos un SnackBar o similar
               final password =
                   _formController.getFieldValue<String>('password');
               final confirm =

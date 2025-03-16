@@ -5,7 +5,7 @@ class JarFieldConfig<T> {
   final JarSchema<T, JarSchema<T, dynamic>> schema;
   final T? defaultValue;
   final bool disabled;
-  final List<AsyncValidator<T>> asyncValidators;
+  final List<AsyncValidator> asyncValidators;
 
   const JarFieldConfig({
     required this.schema,

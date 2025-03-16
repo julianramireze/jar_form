@@ -1,1 +1,1 @@
-typedef AsyncValidator<T> = Future<String?> Function(T? value);
+typedef AsyncValidator = Future<String?> Function(dynamic value);

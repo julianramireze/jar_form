@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:jar_form/jar_form.dart';
 import 'field/config.dart';
 import 'field/state.dart';
 
@@ -10,6 +11,7 @@ class JarFormController extends ChangeNotifier {
   final Map<String, StreamController<dynamic>> _controllers = {};
   final Map<String, List<Function(dynamic value)>> _watchers = {};
   bool _isSubmitting = false;
+  Future<void> Function(Map<String, dynamic> values)? _formOnSubmit;
 
   bool get isSubmitting => _isSubmitting;
   bool get isValid =>
@@ -34,7 +36,8 @@ class JarFormController extends ChangeNotifier {
       onChange: (value) => setValue<T>(name, value),
       markAsTouched: () => markAsTouched(name),
     );
-    _controllers[name] = StreamController<JarFieldState<T>>.broadcast();
+
+    _controllers[name] = StreamController<JarFieldState<dynamic>>.broadcast();
     _watchers[name] = [];
 
     if (config.defaultValue != null) {
@@ -47,63 +50,85 @@ class JarFormController extends ChangeNotifier {
   Future<void> setValue<T>(String name, T? value) async {
     if (!_configs.containsKey(name)) return;
 
-    final dynamicConfig = _configs[name] as JarFieldConfig<dynamic>;
-    final config = JarFieldConfig<T>(
-      schema: dynamicConfig.schema as dynamic,
-      defaultValue: dynamicConfig.defaultValue as T?,
-      disabled: dynamicConfig.disabled,
-      asyncValidators:
-          dynamicConfig.asyncValidators
-              .map((validator) => (T? value) => validator(value))
-              .toList(),
-    );
-
+    final fieldConfig = _configs[name] as JarFieldConfig<dynamic>;
     final oldState = _fields[name] as JarFieldState<dynamic>;
-    final typedOldState = JarFieldState<T>(
-      value: oldState.value as T?,
+
+    var newState = JarFieldState<T>(
+      value: value,
       error: oldState.error,
-      isDirty: oldState.isDirty,
+      isDirty: true,
       isTouched: oldState.isTouched,
       isValidating: oldState.isValidating,
       isDisabled: oldState.isDisabled,
       name: oldState.name,
-      onChange: oldState.onChange,
-      markAsTouched: oldState.markAsTouched,
+      onChange: (v) => setValue<T>(name, v),
+      markAsTouched: () => markAsTouched(name),
     );
-
-    var newState = typedOldState.copyWith(value: value, isDirty: true);
 
     final allValues = getValues();
     allValues[name] = value;
 
-    final result = config.schema.validate(value, allValues);
+    final result = fieldConfig.schema.validate(value, allValues);
     newState = newState.copyWith(error: result.error);
 
-    if (newState.error == null && config.asyncValidators.isNotEmpty) {
+    if (newState.error == null && fieldConfig.asyncValidators.isNotEmpty) {
       newState = newState.copyWith(isValidating: true);
       _updateField(name, newState);
 
-      for (final validator in config.asyncValidators) {
-        final error = await validator(value);
-        if (error != null) {
-          newState = newState.copyWith(error: error);
+      for (final validator in fieldConfig.asyncValidators) {
+        try {
+          final error = await validator(value);
+
+          if (error != null) {
+            newState = newState.copyWith(error: error);
+            _updateField(name, newState);
+            break;
+          }
+        } catch (e) {
+          newState =
+              newState.copyWith(error: 'Validation error: ${e.toString()}');
+          _updateField(name, newState);
           break;
         }
       }
 
-      newState = newState.copyWith(isValidating: false);
+      if (newState.error == null) {
+        newState = newState.copyWith(isValidating: false);
+        _updateField(name, newState);
+      }
+    } else {
+      _updateField(name, newState);
     }
 
-    _updateField(name, newState);
     _notifyWatchers(name, value);
   }
 
   void watch<T>(String name, Function(T? value) callback) {
-    _watchers[name]?.add(callback as Function(dynamic));
+    if (!_watchers.containsKey(name)) {
+      _watchers[name] = [];
+    }
+
+    void adaptedCallback(dynamic value) {
+      try {
+        T? typedValue;
+        if (value == null) {
+          typedValue = null;
+        } else if (value is T) {
+          typedValue = value;
+        } else {
+          typedValue = value as T?;
+        }
+        callback(typedValue);
+      } catch (e) {
+        callback(null);
+      }
+    }
+
+    _watchers[name]?.add(adaptedCallback);
   }
 
   void unwatch<T>(String name, Function(T? value) callback) {
-    _watchers[name]?.remove(callback);
+    _watchers[name]?.clear();
   }
 
   void _notifyWatchers(String name, dynamic value) {
@@ -170,7 +195,27 @@ class JarFormController extends ChangeNotifier {
   }
 
   Stream<JarFieldState<T>>? getFieldStream<T>(String name) {
-    return _controllers[name]?.stream as Stream<JarFieldState<T>>?;
+    final stream = _controllers[name]?.stream;
+    if (stream == null) return null;
+
+    return stream.map((dynamic state) {
+      if (state is JarFieldState<T>) {
+        return state;
+      } else if (state is JarFieldState) {
+        return JarFieldState<T>(
+          value: state.value as T?,
+          error: state.error,
+          isDirty: state.isDirty,
+          isTouched: state.isTouched,
+          isValidating: state.isValidating,
+          isDisabled: state.isDisabled,
+          name: state.name,
+          onChange: (value) => setValue<T>(name, value),
+          markAsTouched: () => markAsTouched(name),
+        );
+      }
+      throw StateError('Invalid state type in stream');
+    });
   }
 
   Map<String, dynamic> getValues() {
@@ -200,7 +245,7 @@ class JarFormController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await onSubmit?.call(getValues());
+      await (onSubmit ?? _formOnSubmit)?.call(getValues());
       return true;
     } finally {
       _isSubmitting = false;
@@ -214,14 +259,14 @@ class JarFormController extends ChangeNotifier {
     if (fields == null) {
       for (var name in _configs.keys) {
         final value = values[name];
-        setValue(name, value);
+
+        _updateFieldWithCorrectType(name, value);
       }
     } else if (fields is String) {
-      setValue(fields, values[fields]);
+      _updateFieldWithCorrectType(fields, values[fields]);
     } else if (fields is List<String>) {
       for (var name in fields) {
-        final value = values[name];
-        setValue(name, value);
+        _updateFieldWithCorrectType(name, values[name]);
       }
     } else {
       throw ArgumentError('Invalid argument type');
@@ -235,7 +280,50 @@ class JarFormController extends ChangeNotifier {
   }
 
   void _notifyField(String name) {
-    _controllers[name]?.add(_fields[name]);
+    final controller = _controllers[name];
+    final state = _fields[name];
+
+    if (controller != null && state != null) {
+      controller.add(state);
+    }
+  }
+
+  void setFormSubmitCallback(
+      Future<void> Function(Map<String, dynamic> values)? callback) {
+    _formOnSubmit = callback;
+  }
+
+  void _updateFieldWithCorrectType(String name, dynamic value) {
+    if (!_configs.containsKey(name)) return;
+
+    final config = _configs[name];
+    final oldState = _fields[name];
+
+    final newState = JarFieldState(
+      value: value,
+      error: oldState.error,
+      isDirty: oldState.isDirty,
+      isTouched: oldState.isTouched,
+      isValidating: oldState.isValidating,
+      isDisabled: oldState.isDisabled,
+      name: oldState.name,
+      onChange: (dynamic newValue) => _setValue(name, newValue),
+      markAsTouched: oldState.markAsTouched,
+    );
+
+    final allValues = getValues();
+    final result = config.schema.validate(value, allValues);
+
+    final updatedState = newState.copyWith(error: result.error);
+
+    _fields[name] = updatedState;
+    _notifyField(name);
+  }
+
+  void _setValue(String name, dynamic value) {
+    if (!_configs.containsKey(name)) return;
+
+    setValue(name, value);
   }
 
   @override

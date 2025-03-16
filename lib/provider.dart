@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:jar_form/jar_form.dart';
+import 'package:jar_form/controller.dart';
 
 class JarFormProvider extends InheritedWidget {
   final JarFormController controller;

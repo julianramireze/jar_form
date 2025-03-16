@@ -18,6 +18,10 @@ class JarForm extends StatefulWidget {
     this.onSubmit,
   });
 
+  static JarFormState? of(BuildContext context) {
+    return context.findAncestorStateOfType<JarFormState>();
+  }
+
   @override
   JarFormState createState() => JarFormState();
 }
@@ -26,6 +30,8 @@ class JarFormState extends State<JarForm> {
   @override
   void initState() {
     super.initState();
+    widget.controller.setFormSubmitCallback(widget.onSubmit);
+    
     if (widget.schema is JarObject) {
       final objectSchema = widget.schema as JarObject;
       objectSchema.fields.forEach((name, fieldSchema) {
@@ -42,6 +48,18 @@ class JarFormState extends State<JarForm> {
         }
       });
     }
+  }
+
+  @override
+  void didUpdateWidget(JarForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.onSubmit != oldWidget.onSubmit) {
+      widget.controller.setFormSubmitCallback(widget.onSubmit);
+    }
+  }
+
+  Future<bool> submitForm() {
+    return widget.controller.submit();
   }
 
   @override

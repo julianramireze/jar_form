@@ -1,3 +1,5 @@
+import 'package:jar_form/undefined.dart';
+
 class JarFieldState<T> {
   final T? value;
   final String? error;
@@ -22,7 +24,7 @@ class JarFieldState<T> {
   });
 
   JarFieldState<T> copyWith({
-    T? value,
+    Object? value = const Undefined(),
     String? error,
     bool? isDirty,
     bool? isTouched,
@@ -30,7 +32,7 @@ class JarFieldState<T> {
     bool? isDisabled,
   }) {
     return JarFieldState<T>(
-      value: value ?? this.value,
+      value: value is Undefined ? this.value : (value as T?),
       error: error,
       isDirty: isDirty ?? this.isDirty,
       isTouched: isTouched ?? this.isTouched,
