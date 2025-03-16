@@ -255,21 +255,28 @@ class JarFormController extends ChangeNotifier {
 
   void trigger([dynamic fields]) {
     final values = getValues();
+    bool updated = false;
 
     if (fields == null) {
       for (var name in _configs.keys) {
         final value = values[name];
-
-        _updateFieldWithCorrectType(name, value);
+        _updateFieldWithCorrectTypeWithoutNotify(name, value);
+        updated = true;
       }
     } else if (fields is String) {
-      _updateFieldWithCorrectType(fields, values[fields]);
+      _updateFieldWithCorrectTypeWithoutNotify(fields, values[fields]);
+      updated = true;
     } else if (fields is List<String>) {
       for (var name in fields) {
-        _updateFieldWithCorrectType(name, values[name]);
+        _updateFieldWithCorrectTypeWithoutNotify(name, values[name]);
+        updated = true;
       }
     } else {
       throw ArgumentError('Invalid argument type');
+    }
+
+    if (updated) {
+      notifyListeners();
     }
   }
 
@@ -293,7 +300,7 @@ class JarFormController extends ChangeNotifier {
     _formOnSubmit = callback;
   }
 
-  void _updateFieldWithCorrectType(String name, dynamic value) {
+  void _updateFieldWithCorrectTypeWithoutNotify(String name, dynamic value) {
     if (!_configs.containsKey(name)) return;
 
     final config = _configs[name];

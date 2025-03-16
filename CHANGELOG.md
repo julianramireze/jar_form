@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+### Bug Fixes
+
+- Fixed form state not updating properly when using trigger() method
+- Ensured consistent notification of form state changes to listeners
+
 ## 1.0.0
 
 Initial release.
