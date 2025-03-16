@@ -71,10 +71,10 @@ packages:
     dependency: "direct main"
     description:
       name: jar
-      sha256: ccb4cb2e6b644074612bac559e42d3c38b47f434fdfee2dc6ced0dcda92d6566
+      sha256: e1a6aa77db3826c845c3aeff89ed3920786eff217be08e1a4778e39a2abd1c76
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.0"
+    version: "1.1.1"
   jar_form:
     dependency: "direct main"
     description:
