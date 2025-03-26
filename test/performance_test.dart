@@ -111,7 +111,7 @@ void main() {
     test('Performance with complex validation rules', () async {
       final controller = JarFormController();
 
-      final passwordValidator = (dynamic value) {
+      final passwordValidator = (dynamic value, [allValues]) {
         final String? stringValue = value as String?;
         return stringValue != null &&
                 stringValue.contains(RegExp(r'[A-Z]')) &&

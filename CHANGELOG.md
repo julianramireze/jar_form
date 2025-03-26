@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+### Bug Fixes
+
+- Fixed dependent field validation not triggering correctly when related fields change
+- Improved cross-field validation to properly validate fields that depend on other field values
+- Enhanced revalidation logic to update field state consistently regardless of error changes
+
 ## 1.0.1
 
 ### Bug Fixes

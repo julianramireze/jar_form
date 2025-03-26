@@ -28,7 +28,7 @@ class JarFormFieldState<T> extends State<JarFormField<T>> {
     final formProvider = JarFormProvider.of(context);
     if (formProvider != null) {
       _controller = formProvider.controller;
-      final stream = _controller?.getFieldStream(widget.name);
+      final stream = _controller?.getFieldStream<T>(widget.name);
       if (stream != null) {
         _subscription = stream.listen((state) {
           if (mounted) setState(() {});
@@ -49,21 +49,11 @@ class JarFormFieldState<T> extends State<JarFormField<T>> {
       throw StateError('No FormController found in context');
     }
 
-    final fieldState = _controller!.getFieldState(widget.name);
+    final fieldState = _controller!.getFieldState<T>(widget.name);
     if (fieldState == null) {
       throw StateError('Field ${widget.name} not found in form');
     }
 
-    return widget.builder(JarFieldState<T>(
-      value: fieldState.value as T?,
-      error: fieldState.error,
-      isDirty: fieldState.isDirty,
-      isTouched: fieldState.isTouched,
-      isValidating: fieldState.isValidating,
-      isDisabled: fieldState.isDisabled,
-      name: widget.name,
-      onChange: (value) => _controller!.setValue<T>(widget.name, value),
-      markAsTouched: () => _controller!.markAsTouched(widget.name),
-    ));
+    return widget.builder(fieldState);
   }
 }

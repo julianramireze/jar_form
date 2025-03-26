@@ -101,6 +101,31 @@ class JarFormController extends ChangeNotifier {
     }
 
     _notifyWatchers(name, value);
+
+    _revalidateOtherFields(name, allValues);
+  }
+
+  void _revalidateOtherFields(
+      String changedField, Map<String, dynamic> allValues) {
+    for (var fieldName in _fields.keys) {
+      if (fieldName != changedField) {
+        _revalidateField(fieldName, allValues);
+      }
+    }
+    notifyListeners();
+  }
+
+  void _revalidateField(String name, Map<String, dynamic> allValues) {
+    if (!_configs.containsKey(name)) return;
+
+    final fieldConfig = _configs[name] as JarFieldConfig<dynamic>;
+    final state = _fields[name] as JarFieldState<dynamic>;
+
+    final result = fieldConfig.schema.validate(state.value, allValues);
+
+    final updatedState = state.copyWith(error: result.error);
+    _fields[name] = updatedState;
+    _notifyField(name);
   }
 
   void watch<T>(String name, Function(T? value) callback) {
@@ -186,12 +211,37 @@ class JarFormController extends ChangeNotifier {
   }
 
   T? getFieldValue<T>(String name) {
-    final state = _fields[name] as JarFieldState<T>?;
-    return state?.value;
+    final state = _fields[name] as JarFieldState<dynamic>?;
+    if (state == null) return null;
+
+    final value = state.value;
+    if (value == null) return null;
+
+    try {
+      if (value is T) {
+        return value;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 
   JarFieldState<T>? getFieldState<T>(String name) {
-    return _fields[name] as JarFieldState<T>?;
+    final state = _fields[name] as JarFieldState<dynamic>?;
+    if (state == null) return null;
+
+    return JarFieldState<T>(
+      value: state.value is T ? state.value as T? : null,
+      error: state.error,
+      isDirty: state.isDirty,
+      isTouched: state.isTouched,
+      isValidating: state.isValidating,
+      isDisabled: state.isDisabled,
+      name: state.name,
+      onChange: (value) => setValue<T>(name, value),
+      markAsTouched: () => markAsTouched(name),
+    );
   }
 
   Stream<JarFieldState<T>>? getFieldStream<T>(String name) {
@@ -199,11 +249,9 @@ class JarFormController extends ChangeNotifier {
     if (stream == null) return null;
 
     return stream.map((dynamic state) {
-      if (state is JarFieldState<T>) {
-        return state;
-      } else if (state is JarFieldState) {
+      if (state is JarFieldState) {
         return JarFieldState<T>(
-          value: state.value as T?,
+          value: state.value is T ? state.value as T? : null,
           error: state.error,
           isDirty: state.isDirty,
           isTouched: state.isTouched,
@@ -259,16 +307,15 @@ class JarFormController extends ChangeNotifier {
 
     if (fields == null) {
       for (var name in _configs.keys) {
-        final value = values[name];
-        _updateFieldWithCorrectTypeWithoutNotify(name, value);
+        _revalidateField(name, values);
         updated = true;
       }
     } else if (fields is String) {
-      _updateFieldWithCorrectTypeWithoutNotify(fields, values[fields]);
+      _revalidateField(fields, values);
       updated = true;
     } else if (fields is List<String>) {
       for (var name in fields) {
-        _updateFieldWithCorrectTypeWithoutNotify(name, values[name]);
+        _revalidateField(name, values);
         updated = true;
       }
     } else {
@@ -298,39 +345,6 @@ class JarFormController extends ChangeNotifier {
   void setFormSubmitCallback(
       Future<void> Function(Map<String, dynamic> values)? callback) {
     _formOnSubmit = callback;
-  }
-
-  void _updateFieldWithCorrectTypeWithoutNotify(String name, dynamic value) {
-    if (!_configs.containsKey(name)) return;
-
-    final config = _configs[name];
-    final oldState = _fields[name];
-
-    final newState = JarFieldState(
-      value: value,
-      error: oldState.error,
-      isDirty: oldState.isDirty,
-      isTouched: oldState.isTouched,
-      isValidating: oldState.isValidating,
-      isDisabled: oldState.isDisabled,
-      name: oldState.name,
-      onChange: (dynamic newValue) => _setValue(name, newValue),
-      markAsTouched: oldState.markAsTouched,
-    );
-
-    final allValues = getValues();
-    final result = config.schema.validate(value, allValues);
-
-    final updatedState = newState.copyWith(error: result.error);
-
-    _fields[name] = updatedState;
-    _notifyField(name);
-  }
-
-  void _setValue(String name, dynamic value) {
-    if (!_configs.containsKey(name)) return;
-
-    setValue(name, value);
   }
 
   @override

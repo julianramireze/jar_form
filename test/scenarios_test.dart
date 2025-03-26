@@ -10,7 +10,7 @@ void main() {
       final passwordSchema =
           Jar.string().min(8, 'Password must be at least 8 characters');
 
-      final confirmSchema = Jar.string().custom((dynamic value) {
+      final confirmSchema = Jar.string().custom((dynamic value, [allValues]) {
         final String? stringValue = value as String?;
         final password = controller.getFieldValue<String>('password');
         if (stringValue != password) {
@@ -88,7 +88,7 @@ void main() {
 
       final cardNumberSchema = Jar.string()
           .matches(r'^[0-9]{16}$', 'Must be 16 digits')
-          .custom((dynamic value) {
+          .custom((dynamic value, [allValues]) {
         final String? stringValue = value as String?;
         if (stringValue == null || stringValue.isEmpty) return 'Required';
 

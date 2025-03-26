@@ -14,6 +14,7 @@ JAR Form is a powerful reactive form management library for Flutter that works s
 - 🔄 **Async validators** for server-side or complex validations
 - 📱 **Flutter-friendly** components for quick form implementation
 - 🪶 **Lightweight** with minimal external dependencies
+- 🔗 **Cross-field validation** with proper dependency tracking
 
 ## Installation
 
@@ -49,7 +50,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formController = JarFormController();
-  
+
   final _loginSchema = Jar.object({
     'email': Jar.string().email('Invalid email').required('Email is required'),
     'password': Jar.string()
@@ -66,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onSubmit(Map<String, dynamic> values) async {
     // Handle login logic
     print('Login with: ${values['email']}');
-    
+
     // Example of handling login API call
     try {
       // await loginService.login(values['email'], values['password']);
@@ -215,7 +216,7 @@ JarFieldConfig<String>(
   asyncValidators: [
     (value) async {
       if (value == null) return null;
-      
+
       // Check if email is already registered
       final isRegistered = await userService.checkEmailExists(value);
       return isRegistered ? 'Email already registered' : null;
@@ -223,6 +224,29 @@ JarFieldConfig<String>(
   ],
 )
 ```
+
+### Cross-Field Validation
+
+JAR Form fully supports validation rules that depend on other fields' values:
+
+```dart
+final formSchema = Jar.object({
+  'password': Jar.string()
+    .min(8, 'Password must be at least 8 characters')
+    .required('Password is required'),
+
+  'confirmPassword': Jar.string()
+    .custom((value, [allValues]) {
+      if (value != allValues?['password']) {
+        return 'Passwords do not match';
+      }
+      return null;
+    })
+    .required('Please confirm your password'),
+});
+```
+
+The library ensures that when `password` changes, the `confirmPassword` field is automatically revalidated.
 
 ### Conditional Fields
 
@@ -232,7 +256,7 @@ JarForm(
   schema: Jar.object({
     'paymentType': Jar.string().oneOf(['credit', 'paypal']).required(),
     'cardNumber': Jar.string().when('paymentType', {
-      'credit': (schema) => schema.required(),
+      'credit': (schema) => schema.required('Card number is required for credit card payments'),
       'paypal': (schema) => schema.optional(),
     }),
   }),
@@ -242,7 +266,7 @@ JarForm(
         name: 'paymentType',
         builder: (state) => /* payment type selector */,
       ),
-      
+
       JarFormField<String>(
         name: 'cardNumber',
         builder: (state) {
@@ -250,7 +274,7 @@ JarForm(
           if (_formController.getFieldValue('paymentType') != 'credit') {
             return SizedBox.shrink();
           }
-          
+
           return TextField(
             decoration: InputDecoration(
               labelText: 'Card Number',
@@ -271,7 +295,7 @@ JarForm(
 @override
 void initState() {
   super.initState();
-  
+
   // Watch for changes to a field
   _formController.watch<String>('username', (value) {
     // React to changes
@@ -313,6 +337,19 @@ _formController.disable('email');
 _formController.enable('email');
 ```
 
+### Triggering Validation
+
+```dart
+// Validate all fields
+_formController.trigger();
+
+// Validate specific field
+_formController.trigger('email');
+
+// Validate multiple fields
+_formController.trigger(['email', 'password']);
+```
+
 ## Advantages of JAR Form
 
 - **Type Safety**: Fully typed form controls for compile-time checks
@@ -320,6 +357,7 @@ _formController.enable('email');
 - **Separation of Concerns**: Clean separation between UI, validation, and form state
 - **Flexibility**: Works with any Flutter widget for custom form UIs
 - **Integration**: Seamless integration with JAR validation schemas
+- **Dependency Tracking**: Proper handling of dependent field validations
 - **Testing**: Easy to test with predictable state management
 
 ## License
