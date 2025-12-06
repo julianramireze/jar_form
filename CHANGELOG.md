@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.3
+
+### Changes
+
+- Reverted cross-field validation changes from 1.0.2 due to issues
+- Restored stable functionality from 1.0.1
+
+## 1.0.2
+
+**DEPRECATED** - Please use 1.0.3 instead
+
 ## 1.0.1
 
 ### Bug Fixes
