@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:jar/jar.dart';
-import 'package:jar_form/jar_form.dart';
+import 'package:jar_form/controller.dart';
+import 'package:jar_form/field.dart';
+import 'package:jar_form/field/config.dart';
+import 'package:jar_form/form.dart';
 
 void main() {
   runApp(MyApp());
@@ -15,82 +18,67 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: FormExample(),
+      home: SignupScreen(),
     );
   }
 }
 
-class FormExample extends StatefulWidget {
+class SignupScreen extends StatefulWidget {
   @override
-  _FormExampleState createState() => _FormExampleState();
+  _SignupScreenState createState() => _SignupScreenState();
 }
 
-class _FormExampleState extends State<FormExample> {
+class _SignupScreenState extends State<SignupScreen> {
   final _formController = JarFormController();
-  bool _showPaymentFields = false;
+  late final JarObject _signupSchema;
+
+  final _asyncUsernameValidator = (dynamic value) async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    return value == 'admin' ? 'Username already taken' : null;
+  };
 
   @override
   void initState() {
     super.initState();
 
-    final formSchema = Jar.object({
-      'name': Jar.string().required('Name is required'),
-      'email':
-          Jar.string().email('Invalid email').required('Email is required'),
-      'paymentMethod': Jar.string().oneOf(
-          ['creditCard', 'bankTransfer', 'paypal'],
-          'Invalid payment method').required('Payment method is required'),
+    _signupSchema = Jar.object({
+      'username': Jar.string()
+          .min(3, 'Username must be at least 3 characters')
+          .max(20, 'Username cannot exceed 20 characters')
+          .required('Username is required'),
+      'email': Jar.string()
+          .email('Invalid email format')
+          .required('Email is required'),
+      'password': Jar.string()
+          .min(8, 'Password must be at least 8 characters')
+          .matches(
+            r'(?=.*[A-Z])',
+            'Password must contain at least one uppercase letter',
+          )
+          .required('Password is required'),
+      'confirmPassword': Jar.string()
+          .equalTo('password', 'Passwords must match')
+          .required('Please confirm your password'),
+      'age': Jar.number()
+          .min(18, 'You must be at least 18 years old')
+          .required('Age is required'),
+      'termsAccepted': Jar.boolean()
+          .isTrue('You must accept the terms and conditions')
+          .required('Please respond to the terms'),
     });
 
     _formController.register(
-        'name',
-        JarFieldConfig(
-            schema: formSchema.fields['name']
-                as JarSchema<dynamic, JarSchema<dynamic, dynamic>>));
-    _formController.register(
-        'email',
-        JarFieldConfig(
-            schema: formSchema.fields['email']
-                as JarSchema<dynamic, JarSchema<dynamic, dynamic>>));
-    _formController.register(
-        'paymentMethod',
-        JarFieldConfig(
-            schema: formSchema.fields['paymentMethod']
-                as JarSchema<dynamic, JarSchema<dynamic, dynamic>>));
-
-    String? validateCreditCard(String? value,
-        [Map<String, dynamic>? allValues]) {
-      final method = allValues?['paymentMethod'];
-      if (method == 'creditCard' && (value == null || value.isEmpty)) {
-        return 'Credit card number is required for credit card payments';
-      }
-      return null;
-    }
-
-    _formController.register(
-        'creditCardNumber',
-        JarFieldConfig<String>(
-            schema: Jar.string().custom(validateCreditCard)
-                as JarSchema<String, JarSchema<String, dynamic>>));
-
-    _formController.watch<String>('paymentMethod', (value) {
-      setState(() {
-        _showPaymentFields = value == 'creditCard';
-      });
-
-      _formController.trigger(['creditCardNumber']);
-    });
-
-    _formController.addListener(_onFormControllerChange);
-  }
-
-  void _onFormControllerChange() {
-    setState(() {});
+      'username',
+      JarFieldConfig<String>(
+        schema: _signupSchema.fields['username']
+            as JarSchema<String, JarSchema<String, dynamic>>,
+        asyncValidators: [_asyncUsernameValidator],
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _formController.removeListener(_onFormControllerChange);
     _formController.dispose();
     super.dispose();
   }
@@ -99,13 +87,13 @@ class _FormExampleState extends State<FormExample> {
     await Future.delayed(const Duration(seconds: 1));
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Form submitted successfully!'),
+      const SnackBar(
+        content: Text('Signup successful!'),
         backgroundColor: Colors.green,
       ),
     );
 
-    print('Form values:');
+    print('Form submitted with values:');
     print(values);
   }
 
@@ -113,127 +101,32 @@ class _FormExampleState extends State<FormExample> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('JAR Form - Dependent Validation Example'),
+        title: const Text('JAR Form Example'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: JarForm(
           controller: _formController,
-          schema: Jar.object({}),
+          schema: _signupSchema,
           onSubmit: _onSubmit,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              JarFormField<String>(
-                name: 'name',
-                builder: (state) => TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Name',
-                    errorText: state.error,
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: state.onChange,
-                  onTap: state.markAsTouched,
-                ),
-              ),
-              SizedBox(height: 16),
-              JarFormField<String>(
-                name: 'email',
-                builder: (state) => TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    errorText: state.error,
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  onChanged: state.onChange,
-                  onTap: state.markAsTouched,
-                ),
-              ),
-              SizedBox(height: 16),
-              JarFormField<String>(
-                name: 'paymentMethod',
-                builder: (state) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Payment Method', style: TextStyle(fontSize: 16)),
-                    SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        errorText: state.error,
-                        border: OutlineInputBorder(),
-                      ),
-                      value: state.value,
-                      hint: Text('Select payment method'),
-                      items: [
-                        DropdownMenuItem(
-                            value: 'creditCard', child: Text('Credit Card')),
-                        DropdownMenuItem(
-                            value: 'bankTransfer',
-                            child: Text('Bank Transfer')),
-                        DropdownMenuItem(
-                            value: 'paypal', child: Text('PayPal')),
-                      ],
-                      onChanged: (value) {
-                        state.onChange(value);
-                        state.markAsTouched();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 16),
-              if (_showPaymentFields)
-                JarFormField<String>(
-                  name: 'creditCardNumber',
-                  builder: (state) => TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Credit Card Number',
-                      errorText: state.error,
-                      border: OutlineInputBorder(),
-                      helperText: 'Required for credit card payments',
-                    ),
-                    keyboardType: TextInputType.number,
-                    onChanged: state.onChange,
-                    onTap: state.markAsTouched,
-                  ),
-                ),
-              SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        _formController.submit();
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Text(
-                          'Submit',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        _formController.resetAll();
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Text(
-                          'Reset',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 24),
-              _buildFormStatus(),
+              _buildUsernameField(),
+              const SizedBox(height: 16),
+              _buildEmailField(),
+              const SizedBox(height: 16),
+              _buildPasswordField(),
+              const SizedBox(height: 16),
+              _buildConfirmPasswordField(),
+              const SizedBox(height: 16),
+              _buildAgeField(),
+              const SizedBox(height: 16),
+              _buildTermsField(),
+              const SizedBox(height: 24),
+              _buildSubmitButton(),
+              const SizedBox(height: 16),
+              _buildResetButton(),
             ],
           ),
         ),
@@ -241,57 +134,155 @@ class _FormExampleState extends State<FormExample> {
     );
   }
 
-  Widget _buildFormStatus() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Form Status:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            SizedBox(height: 8),
-            _buildStatusRow('Valid', _formController.isValid),
-            _buildStatusRow('Dirty', _formController.isDirty),
-            _buildStatusRow('Touched', _formController.isTouched),
-            _buildStatusRow('Submitting', _formController.isSubmitting),
-            SizedBox(height: 16),
-            Text('Form Values:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            SizedBox(height: 8),
-            Text(
-              _formController.getValues().toString(),
-              style: TextStyle(fontFamily: 'monospace'),
-            ),
-            SizedBox(height: 16),
-            Text('Form Errors:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            SizedBox(height: 8),
-            Text(
-              _formController.getErrors().toString(),
-              style: TextStyle(fontFamily: 'monospace', color: Colors.red),
-            ),
-          ],
+  Widget _buildUsernameField() {
+    return JarFormField<String>(
+      name: 'username',
+      builder: (state) => TextField(
+        //should pass value for maintain sync when value changes
+        decoration: InputDecoration(
+          labelText: 'Username',
+          errorText: state.error,
+          border: const OutlineInputBorder(),
+          helperText: 'Try "admin" to see async validation error',
+          suffixIcon: state.isValidating
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.0))
+              : null,
         ),
+        onChanged: state.onChange,
+        onTap: state.markAsTouched,
       ),
     );
   }
 
-  Widget _buildStatusRow(String label, bool value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          Text('$label: ', style: TextStyle(fontWeight: FontWeight.w500)),
-          Icon(
-            value ? Icons.check_circle : Icons.cancel,
-            color: value ? Colors.green : Colors.red,
-            size: 18,
-          ),
-          SizedBox(width: 4),
-          Text(value.toString()),
-        ],
+  Widget _buildEmailField() {
+    return JarFormField<String>(
+      name: 'email',
+      builder: (state) => TextField(
+        //should pass value for maintain sync when value changes
+        decoration: InputDecoration(
+          labelText: 'Email',
+          errorText: state.error,
+          border: const OutlineInputBorder(),
+        ),
+        keyboardType: TextInputType.emailAddress,
+        onChanged: state.onChange,
+        onTap: state.markAsTouched,
       ),
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return JarFormField<String>(
+      name: 'password',
+      builder: (state) => TextField(
+        //should pass value for maintain sync when value changes
+        decoration: InputDecoration(
+          labelText: 'Password',
+          errorText: state.error,
+          border: const OutlineInputBorder(),
+          helperText: 'Must be at least 8 characters with 1 uppercase letter',
+        ),
+        obscureText: true,
+        onChanged: state.onChange,
+        onTap: state.markAsTouched,
+      ),
+    );
+  }
+
+  Widget _buildConfirmPasswordField() {
+    return JarFormField<String>(
+      name: 'confirmPassword',
+      builder: (state) => TextField(
+        //should pass value for maintain sync when value changes
+        decoration: InputDecoration(
+          labelText: 'Confirm Password',
+          errorText: state.error,
+          border: const OutlineInputBorder(),
+        ),
+        obscureText: true,
+        onChanged: state.onChange,
+        onTap: state.markAsTouched,
+      ),
+    );
+  }
+
+  Widget _buildAgeField() {
+    return JarFormField<num>(
+      name: 'age',
+      builder: (state) => TextField(
+        //should pass value for maintain sync when value changes
+        decoration: InputDecoration(
+          labelText: 'Age',
+          errorText: state.error,
+          border: const OutlineInputBorder(),
+          helperText: 'You must be at least 18 years old',
+        ),
+        keyboardType: TextInputType.number,
+        onChanged: (value) {
+          if (value.isEmpty) {
+            state.onChange(null);
+          } else {
+            state.onChange(int.tryParse(value));
+          }
+        },
+        onTap: state.markAsTouched,
+      ),
+    );
+  }
+
+  Widget _buildTermsField() {
+    return JarFormField<bool>(
+      name: 'termsAccepted',
+      builder: (state) => CheckboxListTile(
+        title: const Text('I accept the terms and conditions'),
+        value: state.value ?? false,
+        onChanged: (value) {
+          state.onChange(value);
+          state.markAsTouched();
+        },
+        controlAffinity: ListTileControlAffinity.leading,
+        subtitle: state.error != null
+            ? Text(
+                state.error!,
+                style: const TextStyle(color: Colors.red),
+              )
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Builder(builder: (context) {
+      return ElevatedButton(
+        onPressed: _formController.isSubmitting
+            ? null
+            : () => _formController.submit(),
+        child: _formController.isSubmitting
+            ? const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.0, color: Colors.white),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Submitting...'),
+                ],
+              )
+            : const Text('Sign Up'),
+      );
+    });
+  }
+
+  Widget _buildResetButton() {
+    return OutlinedButton(
+      onPressed: () => _formController.clearAll(),
+      child: const Text('Reset Form'),
     );
   }
 }
