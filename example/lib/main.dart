@@ -3,6 +3,7 @@ import 'package:jar/jar.dart';
 import 'package:jar_form/controller.dart';
 import 'package:jar_form/field.dart';
 import 'package:jar_form/field/config.dart';
+import 'package:jar_form/field_array.dart';
 import 'package:jar_form/form.dart';
 
 void main() {
@@ -123,6 +124,8 @@ class _SignupScreenState extends State<SignupScreen> {
               _buildAgeField(),
               const SizedBox(height: 16),
               _buildTermsField(),
+              const SizedBox(height: 16),
+              _buildPhonesArray(),
               const SizedBox(height: 24),
               _buildSubmitButton(),
               const SizedBox(height: 16),
@@ -250,6 +253,90 @@ class _SignupScreenState extends State<SignupScreen> {
                 style: const TextStyle(color: Colors.red),
               )
             : null,
+      ),
+    );
+  }
+
+  Widget _buildPhonesArray() {
+    return JarFieldArray(
+      name: 'phones',
+      itemSchema: Jar.object({
+        'label': Jar.string().required('Label is required'),
+        'number': Jar.string()
+            .matches(r'^\d{7,}$', 'At least 7 digits')
+            .required('Number is required'),
+      }),
+      arraySchema: (array) => array.min(1, 'Add at least one phone'),
+      defaultItems: const [
+        {'label': 'Mobile', 'number': null},
+      ],
+      builder: (context, phones) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Phone numbers',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          if (phones.error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                phones.error!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+          for (final item in phones.items)
+            Padding(
+              key: ValueKey(item.id),
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: JarFormField<String>(
+                      name: item.path('label'),
+                      builder: (field) => TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Label',
+                          errorText: field.error,
+                          border: const OutlineInputBorder(),
+                        ),
+                        onChanged: field.onChange,
+                        onTap: field.markAsTouched,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: JarFormField<String>(
+                      name: item.path('number'),
+                      builder: (field) => TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Number',
+                          errorText: field.error,
+                          border: const OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        onChanged: field.onChange,
+                        onTap: field.markAsTouched,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () => phones.removeAt(item.index),
+                  ),
+                ],
+              ),
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => phones.append({'label': null, 'number': null}),
+              icon: const Icon(Icons.add),
+              label: const Text('Add phone'),
+            ),
+          ),
+        ],
       ),
     );
   }

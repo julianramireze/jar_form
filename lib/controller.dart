@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:jar/jar.dart';
 import 'package:jar_form/jar_form.dart';
-import 'field/config.dart';
-import 'field/state.dart';
 
 class JarFormController extends ChangeNotifier {
   final Map<String, dynamic> _fields = {};
   final Map<String, dynamic> _configs = {};
   final Map<String, StreamController<dynamic>> _controllers = {};
   final Map<String, List<Function(dynamic value)>> _watchers = {};
+  final Map<String, JarFieldArrayController> _arrays = {};
   bool _isSubmitting = false;
   Future<void> Function(Map<String, dynamic> values)? _formOnSubmit;
 
@@ -47,6 +47,119 @@ class JarFormController extends ChangeNotifier {
     _notifyField(name);
   }
 
+  JarFieldArrayController registerArray(
+    String name, {
+    required JarObject itemSchema,
+    JarArray<Map<String, dynamic>> Function(JarArray<Map<String, dynamic>>)?
+        arraySchema,
+    List<Map<String, dynamic>>? defaultItems,
+  }) {
+    final existing = _arrays[name];
+    if (existing != null) return existing;
+
+    final baseSchema = Jar.array<Map<String, dynamic>>(itemSchema);
+    final resolvedSchema =
+        arraySchema != null ? arraySchema(baseSchema) : baseSchema;
+
+    final array = JarFieldArrayController(
+      form: this,
+      name: name,
+      itemSchema: itemSchema,
+      schema: resolvedSchema,
+      defaultItems: defaultItems,
+    );
+    _arrays[name] = array;
+
+    _registerArrayField(name, resolvedSchema);
+    array.init();
+    syncArray(name);
+
+    return array;
+  }
+
+  JarFieldArrayController? getArray(String name) => _arrays[name];
+
+  void _registerArrayField(String name, JarArray<Map<String, dynamic>> schema) {
+    _configs[name] = JarFieldConfig<dynamic>(
+      schema: schema as JarSchema<dynamic, JarSchema<dynamic, dynamic>>,
+    );
+    _fields[name] ??= JarFieldState<dynamic>(
+      value: const <Map<String, dynamic>>[],
+      name: name,
+      onChange: (value) => setValue(name, value),
+      markAsTouched: () => markAsTouched(name),
+    );
+    _controllers[name] ??= StreamController<JarFieldState<dynamic>>.broadcast();
+    _watchers[name] ??= [];
+  }
+
+  void registerLeaf(
+      String name, JarSchema<dynamic, dynamic> schema, dynamic value) {
+    final config = JarFieldConfig<dynamic>(
+      schema: schema as JarSchema<dynamic, JarSchema<dynamic, dynamic>>,
+    );
+    _configs[name] = config;
+    _fields[name] = JarFieldState<dynamic>(
+      value: value,
+      error:
+          value == null ? null : config.schema.validate(value, _rawValues()).error,
+      name: name,
+      onChange: (newValue) => setValue(name, newValue),
+      markAsTouched: () => markAsTouched(name),
+    );
+    _controllers[name] ??= StreamController<JarFieldState<dynamic>>.broadcast();
+    _watchers[name] ??= [];
+    _notifyField(name);
+  }
+
+  void placeLeafValue(String name, dynamic value) {
+    if (!_configs.containsKey(name)) return;
+
+    final config = _configs[name] as JarFieldConfig<dynamic>;
+    final oldState = _fields[name] as JarFieldState<dynamic>;
+    final result = config.schema.validate(value, _rawValues());
+
+    _fields[name] =
+        oldState.copyWith(value: value, error: result.error, isDirty: true);
+    _notifyField(name);
+  }
+
+  void unregister(String name) {
+    _configs.remove(name);
+    _fields.remove(name);
+    _watchers.remove(name);
+    _controllers.remove(name)?.close();
+  }
+
+  void syncArray(String name, {bool forceNotify = false}) {
+    final array = _arrays[name];
+    final config = _configs[name] as JarFieldConfig<dynamic>?;
+    if (array == null || config == null) return;
+
+    final list = array.assemble();
+    final oldState = _fields[name] as JarFieldState<dynamic>;
+    final result = config.schema.validate(list, _rawValues());
+
+    _fields[name] =
+        oldState.copyWith(value: list, error: result.error, isDirty: true);
+
+    if (forceNotify || oldState.error != result.error) {
+      _notifyField(name);
+    }
+  }
+
+  void finalizeArray(String name) {
+    syncArray(name, forceNotify: true);
+    notifyListeners();
+  }
+
+  String? _ownerArray(String name) {
+    for (final arrayName in _arrays.keys) {
+      if (name.startsWith('$arrayName.')) return arrayName;
+    }
+    return null;
+  }
+
   Future<void> setValue<T>(String name, T? value) async {
     if (!_configs.containsKey(name)) return;
 
@@ -65,7 +178,7 @@ class JarFormController extends ChangeNotifier {
       markAsTouched: () => markAsTouched(name),
     );
 
-    final allValues = getValues();
+    final allValues = _rawValues();
     allValues[name] = value;
 
     final result = fieldConfig.schema.validate(value, allValues);
@@ -99,6 +212,9 @@ class JarFormController extends ChangeNotifier {
     } else {
       _updateField(name, newState);
     }
+
+    final owner = _ownerArray(name);
+    if (owner != null) syncArray(owner);
 
     _notifyWatchers(name, value);
   }
@@ -173,7 +289,13 @@ class JarFormController extends ChangeNotifier {
   }
 
   void resetAll() {
-    _configs.keys.forEach(reset);
+    for (final name in _configs.keys.toList()) {
+      if (_arrays.containsKey(name) || _ownerArray(name) != null) continue;
+      reset(name);
+    }
+    for (final array in _arrays.values) {
+      array.resetToDefaults();
+    }
   }
 
   void clear(String name) {
@@ -218,12 +340,25 @@ class JarFormController extends ChangeNotifier {
     });
   }
 
-  Map<String, dynamic> getValues() {
+  Map<String, dynamic> _rawValues() {
     return Map.fromEntries(
       _fields.entries.map(
         (e) => MapEntry(e.key, (e.value as JarFieldState).value),
       ),
     );
+  }
+
+  Map<String, dynamic> getValues() {
+    final values = _rawValues();
+
+    _arrays.forEach((name, array) {
+      values.removeWhere(
+        (key, _) => key == name || key.startsWith('$name.'),
+      );
+      values[name] = array.assemble();
+    });
+
+    return values;
   }
 
   Map<String, String?> getErrors() {
@@ -254,7 +389,7 @@ class JarFormController extends ChangeNotifier {
   }
 
   void trigger([dynamic fields]) {
-    final values = getValues();
+    final values = _rawValues();
     bool updated = false;
 
     if (fields == null) {
@@ -318,7 +453,7 @@ class JarFormController extends ChangeNotifier {
       markAsTouched: oldState.markAsTouched,
     );
 
-    final allValues = getValues();
+    final allValues = _rawValues();
     final result = config.schema.validate(value, allValues);
 
     final updatedState = newState.copyWith(error: result.error);
@@ -339,6 +474,7 @@ class JarFormController extends ChangeNotifier {
       controller.close();
     }
     _watchers.clear();
+    _arrays.clear();
     super.dispose();
   }
 }
