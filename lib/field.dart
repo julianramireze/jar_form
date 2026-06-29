@@ -38,6 +38,21 @@ class JarFormFieldState<T> extends State<JarFormField<T>> {
   }
 
   @override
+  void didUpdateWidget(JarFormField<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.name == oldWidget.name) return;
+
+    _subscription?.cancel();
+    final stream = _controller?.getFieldStream(widget.name);
+    if (stream != null) {
+      _subscription = stream.listen((state) {
+        if (mounted) setState(() {});
+      });
+    }
+    setState(() {});
+  }
+
+  @override
   void dispose() {
     _subscription?.cancel();
     super.dispose();

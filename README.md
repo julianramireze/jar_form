@@ -170,6 +170,65 @@ JarFormField<String>(
 )
 ```
 
+### JarFieldArray
+
+A first-class widget for **repeatable subforms** — the Flutter equivalent of react-hook-form's `useFieldArray`. Each item exposes a stable `id` (use it as the widget `key`, never the index) and an `index`. `item.path('field')` resolves to the namespaced leaf name (`professions.0.startTime`), which you bind with a regular `JarFormField`.
+
+```dart
+JarFieldArray(
+  name: 'professions',
+  itemSchema: Jar.object({
+    'startTime': Jar.string().required('Start required'),
+    'endTime': Jar.string().required('End required'),
+  }),
+  // Optional array-level rules, delegated to Jar.array under the hood
+  arraySchema: (array) => array.min(1, 'Add at least one'),
+  builder: (context, array) => Column(
+    children: [
+      for (final item in array.items)
+        Row(
+          key: ValueKey(item.id), // stable identity, NOT the index
+          children: [
+            Expanded(
+              child: JarFormField<String>(
+                name: item.path('startTime'), // -> 'professions.0.startTime'
+                builder: (field) => TextField(
+                  decoration: InputDecoration(errorText: field.error),
+                  onChanged: field.onChange,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () => array.removeAt(item.index),
+            ),
+          ],
+        ),
+      TextButton(
+        onPressed: () => array.append({'startTime': null, 'endTime': null}),
+        child: const Text('Add'),
+      ),
+    ],
+  ),
+)
+```
+
+The builder receives an `array` handle with:
+
+- `array.items` - the current items (each with `id`, `index`, and `path([field])`)
+- `array.length` - the number of items
+- `array.error` - the array-level error (min/max/unique and element validation)
+- `array.append([value])` / `array.insert(index, [value])` - add an item
+- `array.removeAt(index)` / `array.clear()` - remove item(s)
+- `array.move(from, to)` - reorder items
+
+Per-field errors surface on the leaf `JarFormField`s as usual. `getValues()` returns the array as a clean nested list:
+
+```dart
+controller.getValues();
+// { 'professions': [ {'startTime': '09:00', 'endTime': '17:00'}, ... ] }
+```
+
 ### JarFormController
 
 The core controller that manages form state, validation, and submission.

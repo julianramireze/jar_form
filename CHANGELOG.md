@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0
+
+### Features
+
+- Added `JarFieldArray`, a first-class widget for repeatable subforms (the Flutter equivalent of react-hook-form's `useFieldArray`)
+- Each item exposes a stable `id` (for widget keys) and an `index`, with `item.path('field')` resolving to the namespaced leaf name (e.g. `professions.0.startTime`)
+- Array operations on the builder handle: `append`, `insert`, `removeAt`, `move`, `clear`, plus `items`, `length`, and array-level `error`
+- Array-level rules (`min`/`max`/`unique`) and per-element validation are delegated to JAR's `JarArray` schema
+- `getValues()` now returns array data as a clean nested list (e.g. `{'professions': [ {...}, {...} ]}`) instead of flattened keys
+
+### Changes
+
+- `JarFormController` gained `registerArray`, `getArray`, and `unregister`
+- `JarFormField` now re-subscribes when its `name` changes, keeping bindings correct as array items are reordered or removed
+
 ## 1.0.3
 
 ### Changes

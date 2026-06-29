@@ -46,7 +46,7 @@ void main() {
 
     test('JarString validates with custom function', () async {
       final controller = JarFormController();
-      final schema = Jar.string().custom((value) {
+      final schema = Jar.string().custom((value, [allValues]) {
         if (value == null || value.isEmpty) return 'Required field';
         if (value.length % 2 != 0) return 'Must have even length';
         return null;
@@ -106,7 +106,7 @@ void main() {
 
     test('JarNumber validates with custom function', () async {
       final controller = JarFormController();
-      final schema = Jar.number().custom((value) {
+      final schema = Jar.number().custom((value, [allValues]) {
         if (value == null) return 'Required field';
         if (value % 2 != 0) return 'Must be an even number';
         return null;
@@ -137,7 +137,7 @@ void main() {
 
     test('JarBoolean validates with custom function', () async {
       final controller = JarFormController();
-      final schema = Jar.boolean().custom((value) {
+      final schema = Jar.boolean().custom((value, [allValues]) {
         if (value == null) return 'Required field';
         if (value != true) return 'Must accept terms';
         return null;
@@ -182,7 +182,7 @@ void main() {
 
     test('JarArray validates with custom function', () async {
       final controller = JarFormController();
-      final schema = Jar.array(Jar.string()).custom((value) {
+      final schema = Jar.array(Jar.string()).custom((value, [allValues]) {
         if (value == null || value.isEmpty) return 'Required field';
         if (value.any((item) => item.length > 10))
           return 'Items cannot exceed 10 characters';
@@ -251,7 +251,7 @@ void main() {
       final schema = Jar.object({
         'startDate': Jar.string(),
         'endDate': Jar.string(),
-      }).custom((value) {
+      }).custom((value, [allValues]) {
         if (value == null) return null;
         final startDate = value['startDate'];
         final endDate = value['endDate'];
@@ -370,7 +370,7 @@ void main() {
 
     test('JarDate validates with custom function', () async {
       final controller = JarFormController();
-      final schema = Jar.date().custom((value) {
+      final schema = Jar.date().custom((value, [allValues]) {
         if (value == null) return 'Required field';
 
         final weekday = value.weekday;
@@ -413,7 +413,7 @@ void main() {
 
     test('JarMixed validates with custom function', () async {
       final controller = JarFormController();
-      final schema = Jar.mixed().custom((value) {
+      final schema = Jar.mixed().custom((value, [allValues]) {
         if (value == null) return 'Required field';
 
         if (value is String && value.length > 10) return 'String too long';
