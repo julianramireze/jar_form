@@ -70,9 +70,10 @@ packages:
   jar:
     dependency: "direct main"
     description:
-      path: "../../jar"
-      relative: true
-    source: path
+      name: jar
+      sha256: fa4ab96487c125aac95c7a2feed26d73fca3040d570cb926485281c3188181d6
+      url: "https://pub.dev"
+    source: hosted
     version: "1.3.0"
   jar_form:
     dependency: "direct main"

@@ -13,12 +13,6 @@ dependencies:
   jar_form:
     path: ../
 
-dependency_overrides:
-  # Temporal: dev wiring to the local jar 1.3.0 (matches the parent package).
-  # Remove once jar ^1.3.0 is published to pub.dev.
-  jar:
-    path: ../../jar
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
