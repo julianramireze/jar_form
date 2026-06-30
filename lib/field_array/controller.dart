@@ -88,6 +88,21 @@ class JarFieldArrayController {
   List<Map<String, dynamic>> assemble() =>
       [for (var slot = 0; slot < _ids.length; slot++) _readSlot(slot)];
 
+  Map<String, dynamic>? itemValuesForLeaf(String leafName) {
+    final slot = _slotForLeaf(leafName);
+    if (slot == null) return null;
+    return _readSlot(slot);
+  }
+
+  int? _slotForLeaf(String leafName) {
+    final prefix = '$name.';
+    if (!leafName.startsWith(prefix)) return null;
+    final rest = leafName.substring(prefix.length);
+    final dot = rest.indexOf('.');
+    final slotSegment = dot == -1 ? rest : rest.substring(0, dot);
+    return int.tryParse(slotSegment);
+  }
+
   void _seed(List<Map<String, dynamic>>? defaultItems) {
     if (defaultItems == null) return;
     for (final item in defaultItems) {

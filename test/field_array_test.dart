@@ -8,6 +8,13 @@ JarObject _professionSchema() => Jar.object({
       'endTime': Jar.string().required('End required'),
     });
 
+JarObject _chefSchema() => Jar.object({
+      'profession': Jar.string().required('Profession required'),
+      'foodType': Jar.string().when('profession', {
+        'Chef': (s) => s.required('Food type required for chef'),
+      }),
+    });
+
 void main() {
   group('JarFieldArrayController operations', () {
     late JarFormController controller;
@@ -293,6 +300,112 @@ void main() {
         {'startTime': 'a', 'endTime': 'A'},
         {'startTime': 'c', 'endTime': 'C'},
       ]);
+    });
+  });
+
+  group('JarFieldArray item-scoped validation', () {
+    test('leaf .when discriminates against its own item siblings', () async {
+      final controller = JarFormController();
+      final array =
+          controller.registerArray('professions', itemSchema: _chefSchema());
+
+      array.append({'profession': 'Chef'});
+
+      await controller.setValue('professions.0.foodType', null);
+      expect(controller.getFieldState('professions.0.foodType')?.error,
+          'Food type required for chef');
+
+      await controller.setValue('professions.0.foodType', 'Italian');
+      expect(controller.getFieldState('professions.0.foodType')?.error, isNull);
+    });
+
+    test('leaf .when does not require when the discriminator differs',
+        () async {
+      final controller = JarFormController();
+      final array =
+          controller.registerArray('professions', itemSchema: _chefSchema());
+
+      array.append({'profession': 'Waiter'});
+
+      await controller.setValue('professions.0.foodType', null);
+      expect(controller.getFieldState('professions.0.foodType')?.error, isNull);
+    });
+
+    test('trigger surfaces discriminated leaf errors independently per item',
+        () {
+      final controller = JarFormController();
+      final array =
+          controller.registerArray('professions', itemSchema: _chefSchema());
+
+      array.append({'profession': 'Chef'});
+      array.append({'profession': 'Waiter'});
+
+      controller.trigger();
+
+      expect(controller.getFieldState('professions.0.foodType')?.error,
+          'Food type required for chef');
+      expect(controller.getFieldState('professions.1.foodType')?.error, isNull);
+      expect(controller.isValid, false);
+    });
+
+    test('getFieldValue<T> returns typed values for array leaves', () {
+      final controller = JarFormController();
+      final array =
+          controller.registerArray('professions', itemSchema: _chefSchema());
+
+      array.append({'profession': 'Chef', 'foodType': 'Italian'});
+
+      expect(controller.getFieldValue<String>('professions.0.profession'),
+          'Chef');
+      expect(controller.getFieldValue<String>('professions.0.foodType'),
+          'Italian');
+    });
+
+    test('leaf still discriminates on a top-level field (merged context)',
+        () async {
+      final controller = JarFormController();
+      controller.register('mode', JarFieldConfig(schema: Jar.string()));
+      final array = controller.registerArray(
+        'professions',
+        itemSchema: Jar.object({
+          'note': Jar.string().when('mode', {
+            'strict': (s) => s.required('Note required in strict mode'),
+          }),
+        }),
+      );
+
+      array.append({'note': null});
+
+      await controller.setValue('mode', 'strict');
+      await controller.setValue('professions.0.note', null);
+
+      expect(controller.getFieldState('professions.0.note')?.error,
+          'Note required in strict mode');
+      expect(controller.isValid, false);
+    });
+
+    test('leaf .test discriminates with item context and runs on null',
+        () async {
+      final controller = JarFormController();
+      final array = controller.registerArray(
+        'professions',
+        itemSchema: Jar.object({
+          'profession': Jar.string().required('Profession required'),
+          'foodType': Jar.string().test((value, ctx) =>
+              ctx.parent?['profession'] == 'Chef' &&
+                      (value == null || value.isEmpty)
+                  ? 'Food type required for chef'
+                  : null),
+        }),
+      );
+
+      array.append({'profession': 'Chef'});
+      controller.trigger();
+      expect(controller.getFieldState('professions.0.foodType')?.error,
+          'Food type required for chef');
+
+      await controller.setValue('professions.0.foodType', 'Italian');
+      expect(controller.getFieldState('professions.0.foodType')?.error, isNull);
     });
   });
 }

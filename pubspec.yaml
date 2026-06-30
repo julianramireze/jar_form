@@ -1,6 +1,6 @@
 name: jar_form
 description: Reactive form management for Flutter with JAR validation schema support.
-version: 1.1.0
+version: 1.2.0
 repository: https://github.com/julianramireze/jar_form
 homepage: https://github.com/julianramireze/jar_form
 
@@ -11,7 +11,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  jar: ^1.1.1
+  jar: ^1.3.0
+
+dependency_overrides:
+  # Temporal: dev wiring to the local jar 1.3.0 (the array-item discrimination
+  # relies on JAR's .when instance-pollution fix). Remove this override once
+  # jar ^1.3.0 is published to pub.dev.
+  jar:
+    path: ../jar
 
 dev_dependencies:
   flutter_test:

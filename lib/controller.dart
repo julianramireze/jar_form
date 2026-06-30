@@ -101,8 +101,9 @@ class JarFormController extends ChangeNotifier {
     _configs[name] = config;
     _fields[name] = JarFieldState<dynamic>(
       value: value,
-      error:
-          value == null ? null : config.schema.validate(value, _rawValues()).error,
+      error: value == null
+          ? null
+          : config.schema.validate(value, _contextFor(name, value)).error,
       name: name,
       onChange: (newValue) => setValue(name, newValue),
       markAsTouched: () => markAsTouched(name),
@@ -117,7 +118,7 @@ class JarFormController extends ChangeNotifier {
 
     final config = _configs[name] as JarFieldConfig<dynamic>;
     final oldState = _fields[name] as JarFieldState<dynamic>;
-    final result = config.schema.validate(value, _rawValues());
+    final result = config.schema.validate(value, _contextFor(name, value));
 
     _fields[name] =
         oldState.copyWith(value: value, error: result.error, isDirty: true);
@@ -160,6 +161,30 @@ class JarFormController extends ChangeNotifier {
     return null;
   }
 
+  Map<String, dynamic> _contextFor(String name, dynamic value) {
+    final context = _rawValues();
+    context[name] = value;
+
+    final owner = _ownerArray(name);
+    if (owner != null) {
+      final item = _arrays[owner]?.itemValuesForLeaf(name);
+      if (item != null) {
+        final field = _leafFieldName(owner, name);
+        if (field != null) item[field] = value;
+        context.addAll(item);
+      }
+    }
+
+    return context;
+  }
+
+  String? _leafFieldName(String owner, String name) {
+    final rest = name.substring(owner.length + 1);
+    final dot = rest.indexOf('.');
+    if (dot == -1) return null;
+    return rest.substring(dot + 1);
+  }
+
   Future<void> setValue<T>(String name, T? value) async {
     if (!_configs.containsKey(name)) return;
 
@@ -178,10 +203,7 @@ class JarFormController extends ChangeNotifier {
       markAsTouched: () => markAsTouched(name),
     );
 
-    final allValues = _rawValues();
-    allValues[name] = value;
-
-    final result = fieldConfig.schema.validate(value, allValues);
+    final result = fieldConfig.schema.validate(value, _contextFor(name, value));
     newState = newState.copyWith(error: result.error);
 
     if (newState.error == null && fieldConfig.asyncValidators.isNotEmpty) {
@@ -308,8 +330,8 @@ class JarFormController extends ChangeNotifier {
   }
 
   T? getFieldValue<T>(String name) {
-    final state = _fields[name] as JarFieldState<T>?;
-    return state?.value;
+    final state = _fields[name] as JarFieldState?;
+    return state?.value as T?;
   }
 
   JarFieldState<T>? getFieldState<T>(String name) {
@@ -453,8 +475,7 @@ class JarFormController extends ChangeNotifier {
       markAsTouched: oldState.markAsTouched,
     );
 
-    final allValues = _rawValues();
-    final result = config.schema.validate(value, allValues);
+    final result = config.schema.validate(value, _contextFor(name, value));
 
     final updatedState = newState.copyWith(error: result.error);
 

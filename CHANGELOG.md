@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0
+
+### Features
+
+- **Item-scoped validation for array leaves** — a field inside a `JarFieldArray` item now validates with its sibling values as context, so `.when` / `.test` / `.custom` rules discriminate per item (e.g. a `Chef` row requires `cuisine`, a `Waiter` row does not). The context merges form-level and item-level values, so a leaf can depend on either.
+
+### Bug Fixes
+
+- `getFieldValue<T>` no longer throws for `dynamic`-registered fields (array leaves) — it casts the stored value, not the field state.
+
+### Requires
+
+- `jar` `^1.3.0` — the per-item discrimination relies on JAR's `.when` instance-pollution fix.
+
 ## 1.1.0
 
 ### Features
